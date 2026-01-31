@@ -1,116 +1,129 @@
 import os
+import json
 import subprocess
+from datetime import datetime
 
-def mostrar_codigo(ruta_script):
-    # Asegúrate de que la ruta al script es absoluta
-    ruta_script_absoluta = os.path.abspath(ruta_script)
-    try:
-        with open(ruta_script_absoluta, 'r') as archivo:
-            codigo = archivo.read()
-            print(f"\n--- Código de {ruta_script} ---\n")
-            print(codigo)
-            return codigo
-    except FileNotFoundError:
-        print("El archivo no se encontró.")
-        return None
-    except Exception as e:
-        print(f"Ocurrió un error al leer el archivo: {e}")
-        return None
+# =========================
+# CONFIGURACIÓN GENERAL
+# =========================
+DATA_FILE = "proyectos.json"
 
+# =========================
+# UTILIDADES DE DATOS
+# =========================
+def cargar_datos():
+    """Carga los proyectos desde un archivo JSON"""
+    if not os.path.exists(DATA_FILE):
+        return {}
+    with open(DATA_FILE, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+def guardar_datos(datos):
+    """Guarda los proyectos en un archivo JSON"""
+    with open(DATA_FILE, "w", encoding="utf-8") as f:
+        json.dump(datos, f, indent=4, ensure_ascii=False)
+
+# =========================
+# EJECUCIÓN DE SCRIPTS
+# =========================
 def ejecutar_codigo(ruta_script):
+    """Ejecuta un script Python en una nueva terminal"""
     try:
         if os.name == 'nt':  # Windows
             subprocess.Popen(['cmd', '/k', 'python', ruta_script])
-        else:  # Unix-based systems
+        else:  # Linux / Mac
             subprocess.Popen(['xterm', '-hold', '-e', 'python3', ruta_script])
     except Exception as e:
-        print(f"Ocurrió un error al ejecutar el código: {e}")
+        print(f"Error al ejecutar el script: {e}")
 
-def mostrar_menu():
-    # Define la ruta base donde se encuentra el dashboard.py
-    ruta_base = os.path.dirname(__file__)
+# =========================
+# GESTIÓN DE TAREAS
+# =========================
+def agregar_tarea(datos, materia):
+    nombre = input("Nombre de la tarea: ")
+    fecha = input("Fecha límite (YYYY-MM-DD): ")
+    prioridad = input("Prioridad (Alta / Media / Baja): ")
 
-    unidades = {
-        '1': 'Unidad 1',
-        '2': 'Unidad 2'
+    tarea = {
+        "estado": "Pendiente",
+        "fecha_limite": fecha,
+        "prioridad": prioridad,
+        "creada": datetime.now().strftime("%Y-%m-%d %H:%M")
     }
 
+    datos.setdefault(materia, []).append({nombre: tarea})
+    guardar_datos(datos)
+    print("✅ Tarea agregada correctamente.")
+
+def listar_tareas(datos, materia):
+    print(f"\n📚 Tareas de {materia}")
+    if materia not in datos or not datos[materia]:
+        print("No hay tareas registradas.")
+        return
+
+    for i, tarea in enumerate(datos[materia], 1):
+        for nombre, info in tarea.items():
+            print(f"{i}. {nombre}")
+            print(f"   Estado: {info['estado']}")
+            print(f"   Fecha límite: {info['fecha_limite']}")
+            print(f"   Prioridad: {info['prioridad']}")
+
+def cambiar_estado(datos, materia):
+    listar_tareas(datos, materia)
+    indice = int(input("Número de tarea: ")) - 1
+    nuevo_estado = input("Nuevo estado (Pendiente / En progreso / Completada): ")
+
+    tarea = datos[materia][indice]
+    nombre = list(tarea.keys())[0]
+    tarea[nombre]["estado"] = nuevo_estado
+
+    guardar_datos(datos)
+    print("🔄 Estado actualizado.")
+
+# =========================
+# MENÚ PRINCIPAL
+# =========================
+def mostrar_menu():
+    datos = cargar_datos()
+
     while True:
-        print("\nMenu Principal - Dashboard")
-        # Imprime las opciones del menú principal
-        for key in unidades:
-            print(f"{key} - {unidades[key]}")
+        print("\n🎓 Dashboard Académico")
+        print("1 - Ver materias")
+        print("2 - Agregar tarea")
+        print("3 - Listar tareas")
+        print("4 - Cambiar estado de tarea")
         print("0 - Salir")
 
-        eleccion_unidad = input("Elige una unidad o '0' para salir: ")
-        if eleccion_unidad == '0':
-            print("Saliendo del programa.")
+        opcion = input("Elige una opción: ")
+
+        if opcion == "0":
+            print("👋 Saliendo del sistema.")
             break
-        elif eleccion_unidad in unidades:
-            mostrar_sub_menu(os.path.join(ruta_base, unidades[eleccion_unidad]))
+
+        elif opcion == "1":
+            if not datos:
+                print("No hay materias registradas.")
+            else:
+                for materia in datos:
+                    print(f"- {materia}")
+
+        elif opcion == "2":
+            materia = input("Nombre de la materia: ")
+            agregar_tarea(datos, materia)
+
+        elif opcion == "3":
+            materia = input("Materia a consultar: ")
+            listar_tareas(datos, materia)
+
+        elif opcion == "4":
+            materia = input("Materia: ")
+            cambiar_estado(datos, materia)
+
         else:
-            print("Opción no válida. Por favor, intenta de nuevo.")
+            print("❌ Opción no válida.")
 
-def mostrar_sub_menu(ruta_unidad):
-    sub_carpetas = [f.name for f in os.scandir(ruta_unidad) if f.is_dir()]
-
-    while True:
-        print("\nSubmenú - Selecciona una subcarpeta")
-        # Imprime las subcarpetas
-        for i, carpeta in enumerate(sub_carpetas, start=1):
-            print(f"{i} - {carpeta}")
-        print("0 - Regresar al menú principal")
-
-        eleccion_carpeta = input("Elige una subcarpeta o '0' para regresar: ")
-        if eleccion_carpeta == '0':
-            break
-        else:
-            try:
-                eleccion_carpeta = int(eleccion_carpeta) - 1
-                if 0 <= eleccion_carpeta < len(sub_carpetas):
-                    mostrar_scripts(os.path.join(ruta_unidad, sub_carpetas[eleccion_carpeta]))
-                else:
-                    print("Opción no válida. Por favor, intenta de nuevo.")
-            except ValueError:
-                print("Opción no válida. Por favor, intenta de nuevo.")
-
-def mostrar_scripts(ruta_sub_carpeta):
-    scripts = [f.name for f in os.scandir(ruta_sub_carpeta) if f.is_file() and f.name.endswith('.py')]
-
-    while True:
-        print("\nScripts - Selecciona un script para ver y ejecutar")
-        # Imprime los scripts
-        for i, script in enumerate(scripts, start=1):
-            print(f"{i} - {script}")
-        print("0 - Regresar al submenú anterior")
-        print("9 - Regresar al menú principal")
-
-        eleccion_script = input("Elige un script, '0' para regresar o '9' para ir al menú principal: ")
-        if eleccion_script == '0':
-            break
-        elif eleccion_script == '9':
-            return  # Regresar al menú principal
-        else:
-            try:
-                eleccion_script = int(eleccion_script) - 1
-                if 0 <= eleccion_script < len(scripts):
-                    ruta_script = os.path.join(ruta_sub_carpeta, scripts[eleccion_script])
-                    codigo = mostrar_codigo(ruta_script)
-                    if codigo:
-                        ejecutar = input("¿Desea ejecutar el script? (1: Sí, 0: No): ")
-                        if ejecutar == '1':
-                            ejecutar_codigo(ruta_script)
-                        elif ejecutar == '0':
-                            print("No se ejecutó el script.")
-                        else:
-                            print("Opción no válida. Regresando al menú de scripts.")
-                        input("\nPresiona Enter para volver al menú de scripts.")
-                else:
-                    print("Opción no válida. Por favor, intenta de nuevo.")
-            except ValueError:
-                print("Opción no válida. Por favor, intenta de nuevo.")
-
-# Ejecutar el dashboard
+# =========================
+# EJECUCIÓN
+# =========================
 if __name__ == "__main__":
     mostrar_menu()
-
